@@ -4,6 +4,9 @@
 #include "user.h"
 #include "fcntl.h"
 
+
+
+
 // Parsed command representation
 #define EXEC  1
 #define REDIR 2
@@ -53,6 +56,42 @@ int fork1(void);  // Fork but panics on failure.
 void panic(char*);
 struct cmd *parsecmd(char*);
 
+//check and update cmd path with the global environment path
+void checkPath(struct execcmd *execCmd){
+  int fd=open(execCmd->argv[0],O_RDWR);
+  if(fd>0){
+    return;
+  }
+  
+  fd=open("path",O_RDWR);
+  while(1){
+    int ind=0;
+    char tempPath[50];
+    if((read(fd,tempPath,1))<=0)
+      break;
+    while(1){
+      read(fd,tempPath+ind,1);
+      if(tempPath[ind]==':')
+        break;
+      else
+        ind++;
+    }//end of while
+
+    strcpy(tempPath+ind,execCmd->argv[0]);
+    int tempfd=open(tempPath,O_RDONLY);
+    if(tempfd>0){
+      strcpy(execCmd->argv[0],tempPath);
+      close(fd);
+      close(tempfd);
+      return;
+    }
+  }//end of while
+  close(fd);
+  
+}
+
+
+
 // Execute cmd.  Never returns.
 void
 runcmd(struct cmd *cmd)
@@ -75,6 +114,7 @@ runcmd(struct cmd *cmd)
     ecmd = (struct execcmd*)cmd;
     if(ecmd->argv[0] == 0)
       exit();
+    checkPath(ecmd);
     exec(ecmd->argv[0], ecmd->argv);
     printf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
