@@ -56,6 +56,20 @@ int fork1(void);  // Fork but panics on failure.
 void panic(char*);
 struct cmd *parsecmd(char*);
 
+
+//initilaize a string with 0;
+void strClear(char s[],int len){
+  int i=0;
+  if(len){
+    while(i<len){
+      s[i]=0;
+      i++;
+    }
+  }
+}
+
+
+
 //check and update cmd path with the global environment path
 void checkPath(struct execcmd *execCmd){
   int fd=open(execCmd->argv[0],O_RDWR);
@@ -63,21 +77,41 @@ void checkPath(struct execcmd *execCmd){
     return;
   }
   
-  fd=open("path",O_RDWR);
+  fd=open("/path",O_RDWR);
+  char tempPath[50];
   while(1){
-    int ind=0;
-    char tempPath[50];
-    if((read(fd,tempPath,1))<=0)
+    int firstLetter=1;
+    int ind=0; 
+    strClear(tempPath,50);
+    int stat=read(fd,tempPath,1);
+    //printf(2,"stat is : %d\n",stat);
+    //printf(2,"the first LEttet is %d\n",tempPath[0]);
+    if(stat<=0||tempPath[0]=='\n'){
+     // printf(2,"%s\n","end of file");
       break;
+    }
+    //printf(2,"the path is %s\n",tempPath);
+      
     while(1){
-      read(fd,tempPath+ind,1);
-      if(tempPath[ind]==':')
+      if(firstLetter==1) { //dosen't need to read again'
+        firstLetter=0;
+        
+        }
+      else{
+        read(fd,tempPath+ind,1);  
+      }
+
+      if(tempPath[ind]==':'){
+        //printf(2,"read : %s\n",tempPath);
         break;
+      }
+        
       else
         ind++;
     }//end of while
-
+  
     strcpy(tempPath+ind,execCmd->argv[0]);
+    //printf(2,"the path is %s\n",tempPath);
     int tempfd=open(tempPath,O_RDONLY);
     if(tempfd>0){
       strcpy(execCmd->argv[0],tempPath);
@@ -115,6 +149,7 @@ runcmd(struct cmd *cmd)
     if(ecmd->argv[0] == 0)
       exit();
     checkPath(ecmd);
+    //printf(2,"%s",ecmd->argv[0]);
     exec(ecmd->argv[0], ecmd->argv);
     printf(2, "exec %s failed\n", ecmd->argv[0]);
     break;
