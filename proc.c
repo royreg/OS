@@ -184,7 +184,7 @@ fork(void)
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
 void
-exit(void)
+exit(int status)
 {
   struct proc *p;
   int fd;
@@ -204,6 +204,7 @@ exit(void)
   iput(proc->cwd);
   end_op();
   proc->cwd = 0;
+  proc->exitStat=status;
 
   acquire(&ptable.lock);
 
@@ -228,7 +229,7 @@ exit(void)
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
 int
-wait(void)
+wait(int *status)
 {
   struct proc *p;
   int havekids, pid;
@@ -252,6 +253,8 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
         p->state = UNUSED;
+        if(status!=0)
+          status=&(p->exitStat);
         release(&ptable.lock);
         return pid;
       }
