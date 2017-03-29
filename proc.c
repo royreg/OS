@@ -204,10 +204,10 @@ exit(int status)
   iput(proc->cwd);
   end_op();
   proc->cwd = 0;
-  proc->exitStat=status;
+ 
 
   acquire(&ptable.lock);
-
+  
   // Parent might be sleeping in wait().
   wakeup1(proc->parent);
 
@@ -219,7 +219,7 @@ exit(int status)
         wakeup1(initproc);
     }
   }
-
+   proc->exitStat=status;
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
   sched();
@@ -254,7 +254,7 @@ wait(int *status)
         p->killed = 0;
         p->state = UNUSED;
         if(status!=0)
-          status=&(p->exitStat);
+          *status=(p->exitStat);
         release(&ptable.lock);
         return pid;
       }
