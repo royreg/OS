@@ -1,17 +1,24 @@
 #include "types.h"
+#include "traps.h"
 #include "param.h"
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
 #include "defs.h"
+#include "syscall.h"
 #include "x86.h"
 #include "elf.h"
 
 void 
 pseudo_main(int (*entry)(int, char**), int argc, char **argv) 
 {
-  int stat= (*entry)(argc,argv);
-  exit(stat);
+    int stat =entry(argc, argv);
+    
+     asm("pushl %%eax\n"
+    "pushl %%eax\n"
+    "movl $2, %%eax\n"
+    "int %1" :: "a"(stat), "i" (T_SYSCALL));
+
 }
 
 int
@@ -66,7 +73,8 @@ exec(char *path, char **argv)
   end_op();
   ip = 0;
 
-  pointer_pseudo_main = sz;  
+  pointer_pseudo_main = sz;
+   
 
   // Allocate two pages at the next page boundary.
   // Make the first inaccessible.  Use the second as the user stack.
@@ -110,7 +118,7 @@ exec(char *path, char **argv)
   oldpgdir = proc->pgdir;
   proc->pgdir = pgdir;
   proc->sz = sz;
-  proc->tf->eip = pointer_pseudo_main;  //elf.entry;  // main
+  proc->tf->eip = pointer_pseudo_main;  // main
   proc->tf->esp = sp;
   switchuvm(proc);
   freevm(oldpgdir);
