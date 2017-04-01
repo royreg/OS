@@ -48,6 +48,7 @@ allocproc(void)
 
 found:
   p->state = EMBRYO;
+  p->ntickets = 1;
   p->pid = nextpid++;
 
   release(&ptable.lock);
@@ -158,6 +159,7 @@ fork(void)
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
+  
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -174,6 +176,7 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+
 
   release(&ptable.lock);
 
@@ -271,6 +274,24 @@ wait(int *status)
   }
 }
 
+
+int rando(void)
+{
+  static int z1 = 12345, z2 = 12345, z3 = 12345, z4 = 12345;
+  int b;
+  b  = ((z1 << 6) ^ z1) >> 13;
+  z1 = ((z1 & 4294967294U) << 18) ^ b;
+  b  = ((z2 << 2) ^ z2) >> 27; 
+  z2 = ((z2 & 4294967288U) << 2) ^ b;
+  b  = ((z3 << 13) ^ z3) >> 21;
+  z3 = ((z3 & 4294967280U) << 7) ^ b;
+  b  = ((z4 << 3) ^ z4) >> 12;
+  z4 = ((z4 & 4294967168U) << 13) ^ b;
+  return (z1 ^ z2 ^ z3 ^ z4);
+}
+
+
+
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
@@ -290,9 +311,28 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+
+    int totalNumTickets=0;
+
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state == RUNNABLE || p->state == RUNNING)
+          totalNumTickets+= p->ntickets;
+    }
+
+    //get random number
+    int ran = rando();
+    ran = ran % totalNumTickets;
+
+    int  preSumNtic=0;
+
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
+
+      if(!(ran>=preSumNtic && ran <= (preSumNtic+ p-> ntickets) -1 )){
+        preSumNtic+=p-> ntickets;
+        continue;
+      }
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -306,6 +346,7 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       proc = 0;
+      break;
     }
     release(&ptable.lock);
 

@@ -64,6 +64,14 @@ struct proc {
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
   int exitStat;                 //Process exit status
+  int ntickets;                 //number of tickets for the process
+
+      //      ctime      //process creation time
+      //      ttime        //process termination time
+      //      stime         //the time the process spent in the SLEE PING state
+      //      retime       //the time the process spent in the READY state
+      //      rutime         //the time the process spent in the RUNNING state
+
 };
 
 // Process memory is laid out contiguously, low addresses first:
