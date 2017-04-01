@@ -23,6 +23,27 @@ sys_exit(void)
   exit(status);
   return 0;  // not reached
 }
+int
+sys_priority(void)
+{
+  int p;
+  if(argint(0,&p)<0)
+    return -1;
+  
+  int pri = priority(p);
+  return pri;  // not reached
+}
+
+int
+sys_policy(void)
+{
+  int p;
+  if(argint(0,&p)<0)
+    return -1;
+  
+  int pol = policy(p);
+  return pol;  // not reached
+}
 
 int
 sys_wait(void)
