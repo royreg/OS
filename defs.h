@@ -116,6 +116,9 @@ void            userinit(void);
 int             wait(int *status);
 void            wakeup(void*);
 void            yield(void);
+int 			priority(int);
+int 			policy(int);
+
 
 // swtch.S
 void            swtch(struct context**, struct context*);

@@ -7,6 +7,12 @@
 #include "proc.h"
 #include "spinlock.h"
 
+
+#define  UNIFORM 0
+#define  P_SCHED 1
+#define  DYNAMIC 2
+
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -48,6 +54,19 @@ allocproc(void)
 
 found:
   p->state = EMBRYO;
+  
+
+  int poli = cpu->policy;
+  if(poli == UNIFORM)
+    p->ntickets = 1;
+
+  if(poli == P_SCHED)
+    p->ntickets = 10;
+
+  if(poli == DYNAMIC)
+    p->ntickets = 20;
+
+  
   p->pid = nextpid++;
 
   release(&ptable.lock);
@@ -75,6 +94,44 @@ found:
 
   return p;
 }
+int priority(int pri){
+  if(pri<=0);{
+    return -1;
+  }
+  
+  proc->ntickets=pri;
+  
+  return 1;
+}
+
+
+int policy(int pol){
+  if(pol< 0 || pol>2);{
+    return -1;
+  }
+  if(pol == cpu->policy)
+    return 1;
+  cpu->policy = pol;
+
+  struct proc *p;
+  
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(pol== UNIFORM){
+     p->ntickets = 1;
+    }
+    else if(pol== P_SCHED) {
+      p->ntickets = 10;      
+    }
+    
+    else {
+      p->ntickets = 20;
+    }
+  }
+
+  return 1;
+    
+}
+
 
 //PAGEBREAK: 32
 // Set up first user process.
@@ -158,6 +215,7 @@ fork(void)
   np->sz = proc->sz;
   np->parent = proc;
   *np->tf = *proc->tf;
+  
 
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
@@ -174,6 +232,7 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+
 
   release(&ptable.lock);
 
@@ -204,10 +263,10 @@ exit(int status)
   iput(proc->cwd);
   end_op();
   proc->cwd = 0;
-  proc->exitStat=status;
+ 
 
   acquire(&ptable.lock);
-
+  
   // Parent might be sleeping in wait().
   wakeup1(proc->parent);
 
@@ -219,7 +278,7 @@ exit(int status)
         wakeup1(initproc);
     }
   }
-
+   proc->exitStat=status;
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
   sched();
@@ -254,7 +313,7 @@ wait(int *status)
         p->killed = 0;
         p->state = UNUSED;
         if(status!=0)
-          status=&(p->exitStat);
+          *status=(p->exitStat);
         release(&ptable.lock);
         return pid;
       }
@@ -270,6 +329,27 @@ wait(int *status)
     sleep(proc, &ptable.lock);  //DOC: wait-sleep
   }
 }
+
+
+int rando(void)
+{
+  static int z1 = 12345, z2 = 12345, z3 = 12345, z4 = 12345;
+  int b;
+  b  = ((z1 << 6) ^ z1) >> 13;
+  z1 = ((z1 & 4294967294U) << 18) ^ b;
+  b  = ((z2 << 2) ^ z2) >> 27; 
+  z2 = ((z2 & 4294967288U) << 2) ^ b;
+  b  = ((z3 << 13) ^ z3) >> 21;
+  z3 = ((z3 & 4294967280U) << 7) ^ b;
+  b  = ((z4 << 3) ^ z4) >> 12;
+  z4 = ((z4 & 4294967168U) << 13) ^ b;
+  int ret= (z1 ^ z2 ^ z3 ^ z4);
+  if(ret<0)
+    ret*=(-1);
+  return ret;
+}
+
+
 
 //PAGEBREAK: 42
 // Per-CPU process scheduler.
@@ -290,9 +370,34 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
+
+    int totalNumTickets=0;
+
+
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+        if(p->state == RUNNABLE || p->state == RUNNING)
+          totalNumTickets+= p->ntickets;
+    }
+
+    if(totalNumTickets<=0){
+      release(&ptable.lock);
+      continue;
+    }
+
+    //get random number
+    int ran = rando();
+    ran = ran % totalNumTickets;
+
+    int  preSumNtic=0;
+
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
       if(p->state != RUNNABLE)
         continue;
+
+      if(!(ran>=preSumNtic && ran <= (preSumNtic+ p-> ntickets) -1 )){
+        preSumNtic+=p-> ntickets;
+        continue;
+      }
 
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
@@ -306,6 +411,11 @@ scheduler(void)
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       proc = 0;
+      
+      if(p->ntickets>1)
+        priority(p->ntickets -1);
+     
+      break;
     }
     release(&ptable.lock);
 
@@ -393,6 +503,10 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   proc->chan = chan;
   proc->state = SLEEPING;
+  
+  if(proc->ntickets<91)
+  priority(proc->ntickets + 10);
+  
   sched();
 
   // Tidy up.
