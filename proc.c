@@ -54,18 +54,8 @@ allocproc(void)
 
 found:
   p->state = EMBRYO;
-  
 
-  int poli = cpu->policy;
-  if(poli == UNIFORM)
-    p->ntickets = 1;
-
-  if(poli == P_SCHED)
-    p->ntickets = 10;
-
-  if(poli == DYNAMIC)
-    p->ntickets = 20;
-
+  p->perf->ctime = ticks;
   
   p->pid = nextpid++;
 
@@ -95,7 +85,7 @@ found:
   return p;
 }
 int priority(int pri){
-  if(pri<=0);{
+  if(pri<=0 || cpu->policy!=P_SCHED);{
     return -1;
   }
   
@@ -106,21 +96,28 @@ int priority(int pri){
 
 
 int policy(int pol){
-  if(pol< 0 || pol>2);{
+  cprintf("insert pol \n");
+  cprintf("pol is :  %d\n",pol);
+  if(pol< 0 || pol>2){
     return -1;
   }
+
   if(pol == cpu->policy)
     return 1;
+ 
   cpu->policy = pol;
-
   struct proc *p;
+
+
   
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(pol== UNIFORM){
+      cprintf("insert pol 0 case \n");
      p->ntickets = 1;
     }
     else if(pol== P_SCHED) {
-      p->ntickets = 10;      
+      p->ntickets = 10; 
+      cprintf("insert pol 0 case \n");     
     }
     
     else {
@@ -129,7 +126,6 @@ int policy(int pol){
   }
 
   return 1;
-    
 }
 
 
@@ -167,6 +163,7 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
+  p->startReady=ticks;
 
   release(&ptable.lock);
 }
@@ -231,7 +228,18 @@ fork(void)
 
   acquire(&ptable.lock);
 
+  int poli = cpu->policy;
+  if(poli == UNIFORM)
+    np->ntickets = 1;
+
+  if(poli == P_SCHED)
+    np->ntickets = 10;
+
+  if(poli == DYNAMIC)
+    np->ntickets = 20;
+
   np->state = RUNNABLE;
+  np->startReady=ticks;
 
 
   release(&ptable.lock);
@@ -270,6 +278,7 @@ exit(int status)
   // Parent might be sleeping in wait().
   wakeup1(proc->parent);
 
+
   // Pass abandoned children to init.
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->parent == proc){
@@ -281,6 +290,11 @@ exit(int status)
    proc->exitStat=status;
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
+  proc->perf->ttime = ticks;
+
+  proc->startReady=0;
+  proc->startRun=0;
+  proc->wentToSleep=0;
   sched();
   panic("zombie exit");
 }
@@ -330,6 +344,57 @@ wait(int *status)
   }
 }
 
+int
+wait_stat(int *status,struct perf *performance)
+{
+  struct proc *p;
+  int havekids, pid;
+  
+  {
+    /* data */
+  };
+
+  acquire(&ptable.lock);
+  for(;;){
+    // Scan through table looking for exited children.
+    havekids = 0;
+    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+      if(p->parent != proc)
+        continue;
+      havekids = 1;
+      if(p->state == ZOMBIE){
+        // Found one.
+        pid = p->pid;
+        kfree(p->kstack);
+        p->kstack = 0;
+        freevm(p->pgdir);
+        p->pid = 0;
+        p->parent = 0;
+        p->name[0] = 0;
+        p->killed = 0;
+        p->state = UNUSED;
+        if(status!=0)
+          *status=(p->exitStat);
+
+        performance = p->perf;
+        p->perf = 0;
+
+        release(&ptable.lock);
+        return pid;
+      }
+    }
+
+    // No point waiting if we don't have any children.
+    if(!havekids || proc->killed){
+      release(&ptable.lock);
+      return -1;
+    }
+
+    // Wait for children to exit.  (See wakeup1 call in proc_exit.)
+    sleep(proc, &ptable.lock);  //DOC: wait-sleep
+  }
+}
+
 
 int rando(void)
 {
@@ -362,9 +427,11 @@ int rando(void)
 void
 scheduler(void)
 {
-  struct proc *p;
 
+  struct proc *p;
+  
   for(;;){
+
     // Enable interrupts on this processor.
     sti();
 
@@ -391,29 +458,41 @@ scheduler(void)
     int  preSumNtic=0;
 
     for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
+      if(p->state != RUNNABLE){
+        if(p->state==SLEEPING && p->ntickets<91 && cpu->policy== DYNAMIC)
+          p->ntickets+=10;
+
+        continue;}
 
       if(!(ran>=preSumNtic && ran <= (preSumNtic+ p-> ntickets) -1 )){
         preSumNtic+=p-> ntickets;
         continue;
       }
 
+
+
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
       proc = p;
       switchuvm(p);
+      p->perf->retime=ticks-p->startReady;
       p->state = RUNNING;
+      p->startRun=ticks;
       swtch(&cpu->scheduler, p->context);
+      //cprintf("policy is: %d\n", cpu->policy);
       switchkvm();
+      p->perf->rutime+=ticks - p->startRun;
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       proc = 0;
+      if(p->state==RUNNABLE){
+        p->startReady=ticks;
+      }
       
-      if(p->ntickets>1)
-        priority(p->ntickets -1);
+      if(p->ntickets>1&&cpu->policy==DYNAMIC)
+        p->ntickets-=1;
      
       break;
     }
@@ -503,9 +582,9 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   proc->chan = chan;
   proc->state = SLEEPING;
+  proc->wentToSleep=ticks;
+
   
-  if(proc->ntickets<91)
-  priority(proc->ntickets + 10);
   
   sched();
 
@@ -528,8 +607,10 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan){
       p->state = RUNNABLE;
+      p->perf->stime+=ticks-proc->wentToSleep;
+    }
 }
 
 // Wake up all processes sleeping on chan.

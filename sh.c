@@ -19,7 +19,7 @@
 struct cmd {
   int type;
 };
-
+//sdfsdf
 struct execcmd {
   int type;
   char *argv[MAXARGS];
@@ -102,7 +102,7 @@ void checkPath(struct execcmd *execCmd){
       }
 
       if(tempPath[ind]==':'){
-        //printf(2,"read : %s\n",tempPath);
+        
         break;
       }
         
@@ -111,15 +111,23 @@ void checkPath(struct execcmd *execCmd){
     }//end of while
   
     strcpy(tempPath+ind,execCmd->argv[0]);
-    //printf(2,"the path is %s\n",tempPath);
+    
     int tempfd=open(tempPath,O_RDONLY);
     if(tempfd>0){
-      strcpy(execCmd->argv[0],tempPath);
+      
+      char*  newPlace=malloc(strlen(tempPath));
+      strcpy(newPlace,tempPath);
+      char* oldPath=execCmd->argv[0];
+      free(oldPath);
+      execCmd->argv[0]=newPlace;
+     
       close(fd);
       close(tempfd);
+
       return;
     }
   }//end of while
+  printf(2,"path is %s\n",execCmd->argv[0]);
   close(fd);
   
 }
@@ -149,7 +157,9 @@ runcmd(struct cmd *cmd)
     if(ecmd->argv[0] == 0)
       exit(0);
     checkPath(ecmd);
-    //printf(2,"%s",ecmd->argv[0]);
+    printf(2,"%s\n",ecmd->argv[0]);
+    //printf(2,"%s\n",ecmd->argv[1]);
+
     exec(ecmd->argv[0], ecmd->argv);
     printf(2, "exec %s failed\n", ecmd->argv[0]);
     break;

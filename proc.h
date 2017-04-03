@@ -49,6 +49,17 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+
+struct perf {
+  int ctime;
+  int ttime;
+  int stime;
+  int retime;
+  int rutime;
+};
+
+
+
 // Per-process state
 struct proc {
   uint sz;                     // Size of process memory (bytes)
@@ -66,6 +77,12 @@ struct proc {
   char name[16];               // Process name (debugging)
   int exitStat;                 //Process exit status
   int ntickets;                 //number of tickets for the process
+  struct perf *perf;
+  int wentToSleep;              // the time the procese went to sleep
+  int startRun;                 //time procces started runnimg
+  int startReady;               //time proccess bcome runnable
+
+
 
       //      ctime      //process creation time
       //      ttime        //process termination time

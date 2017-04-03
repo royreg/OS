@@ -31,7 +31,7 @@ sys_priority(void)
     return -1;
   
   int pri = priority(p);
-  return pri;  // not reached
+  return pri;  
 }
 
 int
@@ -40,10 +40,28 @@ sys_policy(void)
   int p;
   if(argint(0,&p)<0)
     return -1;
-  
+  cprintf("p is %x\n",p);
   int pol = policy(p);
-  return pol;  // not reached
+  return pol;  
 }
+
+
+int sys_wait_stat(void){
+
+  int *stat;
+  struct perf* perfi;
+  int retVal = -1;
+
+  if((argptr(0,(char**)&stat,sizeof(stat))>=0) 
+    && (argptr(0,(char**)&perfi,sizeof(perfi))>=0)){
+    retVal=wait_stat(stat,perfi);
+  }
+    
+
+return  retVal;
+}
+
+
 
 int
 sys_wait(void)
