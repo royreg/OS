@@ -1,0 +1,143 @@
+[1mdiff --git a/Makefile b/Makefile[m
+[1mindex 509bf9a..886f83d 100644[m
+[1m--- a/Makefile[m
+[1m+++ b/Makefile[m
+[36m@@ -28,6 +28,7 @@[m [mOBJS = \[m
+ 	uart.o\[m
+ 	vectors.o\[m
+ 	vm.o\[m
+[32m+[m[41m	[m
+ [m
+ # Cross-compiling (e.g., on Mac OS X)[m
+ # TOOLPREFIX = i386-jos-elf[m
+[1mdiff --git a/defs.h b/defs.h[m
+[1mindex 18fe595..3ae2126 100644[m
+[1m--- a/defs.h[m
+[1m+++ b/defs.h[m
+[36m@@ -143,6 +143,7 @@[m [mchar*           safestrcpy(char*, const char*, int);[m
+ int             strlen(const char*);[m
+ int             strncmp(const char*, const char*, uint);[m
+ char*           strncpy(char*, const char*, int);[m
+[32m+[m[32mchar itoa(int num,char* str,int base);[m
+ [m
+ // syscall.c[m
+ int             argint(int, int*);[m
+[1mdiff --git a/exec.c b/exec.c[m
+[1mindex 55b66dd..43ce876 100644[m
+[1m--- a/exec.c[m
+[1m+++ b/exec.c[m
+[36m@@ -10,6 +10,8 @@[m
+ void [m
+ pseudo_main(int (*entry)(int, char**), int argc, char **argv) [m
+ {[m
+[32m+[m[32mint retVal=(*entry)(argc,argv);[m
+[32m+[m[32mexit(retVal);[m
+ }[m
+ [m
+ int[m
+[36m@@ -89,9 +91,10 @@[m [mexec(char *path, char **argv)[m
+   }[m
+   ustack[3+argc] = 0;[m
+ [m
+[32m+[m[41m  [m
+   ustack[0] = 0xffffffff;  // fake return PC[m
+[31m-  ustack[1] = argc;[m
+[31m-  ustack[2] = sp - (argc+1)*4;  // argv pointer[m
+[32m+[m[32m  ustack[1] = argc;  //3;[m
+[32m+[m[32m  ustack[2] =sp - (argc+1)*4; //(int)(&psuedomainarg);   // argv pointer[m
+ [m
+   sp -= (3+argc+1) * 4;[m
+   if(copyout(pgdir, sp, ustack, (3+argc+1)*4) < 0)[m
+[36m@@ -107,7 +110,8 @@[m [mexec(char *path, char **argv)[m
+   oldpgdir = proc->pgdir;[m
+   proc->pgdir = pgdir;[m
+   proc->sz = sz;[m
+[31m-  proc->tf->eip = elf.entry;  // main[m
+[32m+[m
+[32m+[m[32m  proc->tf->eip = elf.entry;//pointer_pseudo_main;       // main[m
+   proc->tf->esp = sp;[m
+   switchuvm(proc);[m
+   freevm(oldpgdir);[m
+[1mdiff --git a/ls.c b/ls.c[m
+[1mindex 27742c2..73c42e5 100644[m
+[1m--- a/ls.c[m
+[1m+++ b/ls.c[m
+[36m@@ -60,7 +60,7 @@[m [mls(char *path)[m
+       memmove(p, de.name, DIRSIZ);[m
+       p[DIRSIZ] = 0;[m
+       if(stat(buf, &st) < 0){[m
+[31m-        printf(1, "ls: cannot stat %s\n", buf);[m
+[32m+[m[41m       [m
+         continue;[m
+       }[m
+       printf(1, "%s %d %d %d\n", fmtname(buf), st.type, st.ino, st.size);[m
+[36m@@ -77,9 +77,10 @@[m [mmain(int argc, char *argv[])[m
+ [m
+   if(argc < 2){[m
+     ls(".");[m
+[31m-    exit(0);[m
+[32m+[m[32m   // exit(0);[m
+   }[m
+   for(i=1; i<argc; i++)[m
+     ls(argv[i]);[m
+[31m-  exit(0);[m
+[32m+[m[41m    [m
+[32m+[m[32m  exit(0);[m[41m [m
+ }[m
+[1mdiff --git a/string.c b/string.c[m
+[1mindex a7cc61f..f405042 100644[m
+[1m--- a/string.c[m
+[1m+++ b/string.c[m
+[36m@@ -103,3 +103,52 @@[m [mstrlen(const char *s)[m
+   return n;[m
+ }[m
+ [m
+[32m+[m
+[32m+[m
+[32m+[m[32m// Implementation of itoa()[m
+[32m+[m[32mchar* itoa(int num, char* str, int base)[m
+[32m+[m[32m{[m
+[32m+[m[32m    int i = 0;[m
+[32m+[m[32m    int  isNegative = 0;[m
+[32m+[m[41m [m
+[32m+[m[32m    /* Handle 0 explicitely, otherwise empty string is printed for 0 */[m
+[32m+[m[32m    if (num == 0)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        str[i++] = '0';[m
+[32m+[m[32m        str[i] = '\0';[m
+[32m+[m[32m        return str;[m
+[32m+[m[32m    }[m
+[32m+[m[41m [m
+[32m+[m[32m    // In standard itoa(), negative numbers are handled only with[m[41m [m
+[32m+[m[32m    // base 10. Otherwise numbers are considered unsigned.[m
+[32m+[m[32m    if (num < 0 && base == 10)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        isNegative = 1;[m
+[32m+[m[32m        num = -num;[m
+[32m+[m[32m    }[m
+[32m+[m[41m [m
+[32m+[m[32m    // Process individual digits[m
+[32m+[m[32m    while (num != 0)[m
+[32m+[m[32m    {[m
+[32m+[m[32m        int rem = num % base;[m
+[32m+[m[32m        str[i++] = (rem > 9)? (rem-10) + 'a' : rem + '0';[m
+[32m+[m[32m        num = num/base;[m
+[32m+[m[32m    }[m
+[32m+[m[41m [m
+[32m+[m[32m    // If number is negative, append '-'[m
+[32m+[m[32m    if (isNegative)[m
+[32m+[m[32m        str[i++] = '-';[m
+[32m+[m[41m [m
+[32m+[m[32m    str[i] = '\0'; // Append string terminator[m
+[32m+[m[32m    int len=strlen(str);[m
+[32m+[m[32m    int jj;[m
+[32m+[m[32m    for(jj=0;jj<len/2;jj++){[m
+[32m+[m[32m      char c=str[jj];[m
+[32m+[m[32m      str[jj]=str[len-jj];[m
+[32m+[m[32m      str[len-jj]=c;[m
+[32m+[m
+[32m+[m[32m    }[m
+[32m+[m[41m [m
+[32m+[m[32m    return str;[m
+[32m+[m[32m}[m
+[32m+[m

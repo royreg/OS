@@ -1,0 +1,11 @@
+#include "types.h"
+#include "stat.h"
+#include "user.h"
+#include "fs.h"
+
+main(int argc, char *argv[])
+{
+ printf(2, "%s\n","tal" );
+return 0;
+}
+

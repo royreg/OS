@@ -95,7 +95,7 @@ found:
   return p;
 }
 int priority(int pri){
-  if(pri<=0);{
+  if(pri<=0 || cpu->policy != 1);{
     return -1;
   }
   

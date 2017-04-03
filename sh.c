@@ -114,7 +114,11 @@ void checkPath(struct execcmd *execCmd){
     //printf(2,"the path is %s\n",tempPath);
     int tempfd=open(tempPath,O_RDONLY);
     if(tempfd>0){
-      strcpy(execCmd->argv[0],tempPath);
+      char* newPath = malloc(strlen(tempPath)); 
+      strcpy(newPath,tempPath);
+      char* oldPath = execCmd->argv[0];
+      free(oldPath);
+      execCmd->argv[0]=newPath;
       close(fd);
       close(tempfd);
       return;
